@@ -1,0 +1,27 @@
+package anmao.mc.translate.config;
+
+public class TranslateApiData {
+    private String url;
+    private String type;
+    private String head;
+    private String data;
+
+    public String getUrl() {
+        return url;
+    }
+    public String getUrl(String source){
+        return getUrl().replace("<source>",source);
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public String getHead() {
+        return head;
+    }
+
+    public String getData() {
+        return data;
+    }
+}
