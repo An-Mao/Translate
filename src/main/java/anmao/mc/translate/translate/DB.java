@@ -1,69 +1,26 @@
 package anmao.mc.translate.translate;
 
+import anmao.mc.amlib.bytes.Byte;
 import anmao.mc.translate.config.Config;
 import anmao.mc.translate.config.Configs;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
-import java.sql.*;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DB {
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final String file = Configs.ConfigDir + "translate.db";
-    private static final String url;
-    private static Connection dbLink = null;
-    static {
-        url = "jdbc:sqlite:D:/AM/AMDev/minecraft/forge/1.20.1/Translate/run/config/Translate/translate.db";//"jdbc:sqlite:"+file;
-        System.out.println("sql :: "+url);
-        link();
-        create();
-    }
-
-    public static void create() {
-        try {
-            Statement statement = dbLink.createStatement();
-            String createDbQuery = "CREATE TABLE IF NOT EXISTS translate (source TEXT PRIMARY KEY, translate TEXT)";
-            statement.executeUpdate(createDbQuery);
-            LOGGER.debug("Database created successfully.");
-        }catch (SQLException e){
-            LOGGER.error(e.getMessage());
-        }
-
-    }
-    public static void link(){
-        try {
-            // 创建SQLite DataSource
-            //Class.forName("org.sqlite.JDBC");
-            //DriverManager.registerDriver(new JDBC());
-            dbLink = DriverManager.getConnection(url);
-        } catch (SQLException e) {
-            LOGGER.error(e.getMessage());
-        }
-    }
-    public static String get(String source){
-        String translate = source;
-        try {
-            String sql = "SELECT * FROM translate WHERE source = ?";
-            PreparedStatement statement = dbLink.prepareStatement(sql);
-            statement.setString(1, source);
-            ResultSet resultSet = statement.executeQuery();
-            if (resultSet.next()) {
-                translate = resultSet.getString("translate");
-                if (!translate.isEmpty()){
-                    //System.out.println("Translate: " + translate);
-                    return translate;
-                }
-            }
-            add(source);
-        }catch (SQLException e){
-            LOGGER.error(e.getMessage());
-        }
-        return translate;
-    }
-    public static void add(String source){
-        add(source,getTranslate(source));
-    }
-
+    private static final ConcurrentHashMap<String,data> TranslateMap = new ConcurrentHashMap<>();
+    private static Thread tt = null;
     private static String getTranslate(String source) {
         if (Config.I.isOnlineTranslate()) {
             return Network.getOnlineTranslate(source);
@@ -71,15 +28,106 @@ public class DB {
         return source;
     }
 
-    public static void add(String source , String translate){
-        String insertQuery = "INSERT INTO employees (name, age, salary) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM employees WHERE name = ?)";
-        try (PreparedStatement preparedStatement = dbLink.prepareStatement(insertQuery)) {
-            preparedStatement.setString(1, source);
-            preparedStatement.setString(2, translate);
-            int rowsAffected = preparedStatement.executeUpdate();
-            System.out.println(rowsAffected + " row(s) inserted.");
-        } catch (SQLException e) {
+    public static String get(String pack,String source) {
+        String filePath = Configs.ConfigDir_Lang + pack +".json";
+        String value = source;
+        try {
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            File file = new File(filePath);
+            if (file.exists()) {
+                JsonObject jsonObject;
+                try (FileReader fileReader = new FileReader(filePath)) {
+                    jsonObject = gson.fromJson(fileReader, JsonObject.class);
+                }
+                if (jsonObject.has(source)) {
+                    value = jsonObject.get(source).getAsString();
+                    return value;
+                }
+            }
+            if (Config.I.isOnlineTranslate()) {
+                String md5 = Byte.getMd5(filePath + "=>" + source);
+                if (TranslateMap.get(md5) == null) {
+                    TranslateMap.put(md5, new data(filePath, source));
+                }
+            }else {
+                Thread thread = new Thread(()-> add(filePath,source,source));
+                thread.start();
+            }
+        } catch (IOException e) {
             LOGGER.error(e.getMessage());
         }
+        return value;
+    }
+
+    public static void addDef(){
+        if (TranslateMap.isEmpty()){
+            return;
+        }
+        Map.Entry<String, data> firstEntry = TranslateMap.entrySet().stream().findFirst().get();
+        /*
+        TranslateMap.forEach((s, data) -> add(data.filePath,data.source,
+                 getTranslate(data.source)));
+
+         */
+        data data = firstEntry.getValue();
+        add(data.filePath,data.source,getTranslate(data.source));
+        TranslateMap.remove(firstEntry.getKey());
+    }
+    public static void add(String filePath,String source,String tran){
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        File file = new File(filePath);
+        JsonObject jsonObject = new JsonObject();
+        try {
+            if (file.exists()) {
+                FileReader fileReader = new FileReader(filePath);
+                jsonObject = gson.fromJson(fileReader, JsonObject.class);
+            } else {
+                file.createNewFile();
+            }
+            jsonObject.addProperty(source, tran);
+            try (FileWriter fileWriter = new FileWriter(filePath)) {
+                gson.toJson(jsonObject, fileWriter);
+            }
+        }catch (IOException e) {
+            LOGGER.error(e.getMessage());
+        }
+    }
+    public static void start(){
+        if (Config.I.isOnlineTranslate()){
+            if (tt == null) {
+                tt = new Thread(() -> {
+                    while (true) {
+                        addDef();
+                        LOGGER.debug("剩余未翻译数量:" + TranslateMap.size());
+                        try {
+                            Thread.sleep(Config.I.getDatas().getRequestInterval());
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                });
+                tt.start();
+            }
+        }
+    }
+    public static @NotNull String getST() {
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        if (stackTrace.length >= 4) {
+            String callerClassName = stackTrace[3].getClassName();
+            try {
+                Class<?> callerClass = Class.forName(callerClassName);
+                Package callerPackage = callerClass.getPackage();
+                if (callerPackage != null) {
+                    return callerPackage.getName();
+                }
+            } catch (ClassNotFoundException e) {
+                LOGGER.error(e.getMessage());
+            }
+        }
+        return "unknown";
+
+    }
+
+    public record data(String filePath, String source) {
     }
 }

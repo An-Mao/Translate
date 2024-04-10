@@ -7,15 +7,15 @@ import java.util.Map;
 
 public class TranslateApi extends JsonConfig<Map<String,TranslateApiData>> {
     public static final String file = Configs.ConfigDir + "api.json";
-    public static final TranslateApi INS = new TranslateApi();
     public TranslateApi() {
         super(file, """
                 {
-                  "name": {
-                    "url":"https://????.com/",
+                  "baidu": {
+                    "url": "https://fanyi-api.baidu.com/api/trans/vip/translate",
                     "type": "POST",
                     "head": "Content-Type:application/x-www-form-urlencoded;",
-                    "data": "<source>"
+                    "data": "baidu.js",
+                    "result": "baiduR.js"
                   }
                 }""", new TypeToken<>(){});
     }

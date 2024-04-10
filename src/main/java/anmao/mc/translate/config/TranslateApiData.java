@@ -5,6 +5,7 @@ public class TranslateApiData {
     private String type;
     private String head;
     private String data;
+    private String result;
 
     public String getUrl() {
         return url;
@@ -23,5 +24,17 @@ public class TranslateApiData {
 
     public String getData() {
         return data;
+    }
+    public String getResult(){return result;}
+
+    @Override
+    public String toString() {
+        return "TranslateApiData{" +
+                "url='" + url + '\'' +
+                ", type='" + type + '\'' +
+                ", head='" + head + '\'' +
+                ", data='" + data + '\'' +
+                ", result='" + result + '\'' +
+                '}';
     }
 }

@@ -1,5 +1,6 @@
 package anmao.mc.translate.translate;
 
+import anmao.mc.translate.JavaScriptSupport;
 import anmao.mc.translate.config.Config;
 import anmao.mc.translate.config.TranslateApiData;
 import com.mojang.logging.LogUtils;
@@ -14,14 +15,36 @@ import java.nio.charset.StandardCharsets;
 
 public class Network {
     private static final Logger LOGGER = LogUtils.getLogger();
-    public static String getOnlineTranslate(String s) {
+    public static String getOnlineTranslate(String source) {
         TranslateApiData api = Config.I.getApi();
+        //System.out.println("api ::"+api);
+        String requestBody;
+        if (api.getData().endsWith(".js")) {
+            requestBody = JavaScriptSupport.jsData(source);
+        } else {
+            requestBody = api.getData().replace("<source>", source);
+        }
+        //System.out.println("data ::"+requestBody);
+
+        String d = sendData(api.getUrl(source),api.getType(),api.getHead(),requestBody);
+        //System.out.println("net ::"+d);
+
+        if (api.getData().endsWith(".js")) {
+            requestBody = JavaScriptSupport.jsResult(source,d);
+        } else {
+            requestBody = api.getData().replace("<translate>", d);
+        }
+        //System.out.println("result ::"+requestBody);
+        return requestBody;
+
+    }
+    public static String sendData(String url, String type, String dataHead, String dataSend){
         try {
-            URL apiUrl = new URL(api.getUrl(s));
+            URL apiUrl = new URL(url);
             HttpURLConnection connection = (HttpURLConnection) apiUrl.openConnection();
-            connection.setRequestMethod(api.getType());
-            if (api.getType().equals("POST")){
-                String[] heads = api.getHead().split(";");
+            connection.setRequestMethod(type);
+            if (type.equals("POST")){
+                String[] heads = dataHead.split(";");
                 for (String head : heads) {
                     if (!head.isEmpty()) {
                         String[] h = head.split(":");
@@ -29,9 +52,8 @@ public class Network {
                     }
                 }
                 connection.setDoOutput(true);
-                String requestBody = api.getData().replace("<source>",s);
                 try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
-                    outputStream.write(requestBody.getBytes(StandardCharsets.UTF_8));
+                    outputStream.write(dataSend.getBytes(StandardCharsets.UTF_8));
                 }
             }
             StringBuilder response = new StringBuilder();
@@ -40,14 +62,13 @@ public class Network {
                 while ((responseLine = reader.readLine()) != null) {
                     response.append(responseLine);
                 }
-                System.out.println("Response: " + response);
+                //System.out.println("Response: " + response);
             }
             connection.disconnect();
             return response.toString();
-
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }
-        return s;
+        return "";
     }
 }

@@ -1,23 +1,29 @@
 package anmao.mc.translate;
 
+import anmao.mc.amlib.javascript.EasyJS;
+import anmao.mc.translate.config.Config;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
-
 public class JavaScriptSupport {
     private static final Logger LOGGER = LogUtils.getLogger();
-    public static void runJS(){
-        ScriptEngineManager manager = new ScriptEngineManager();
-        ScriptEngine engine = manager.getEngineByName("nashorn");
-        try {
-            engine.put("source", 30);
-            Object result = engine.eval("var x = javaVariable; var y = 20; x + y;");
-            System.out.println("Result: " + result);
-        } catch (ScriptException e) {
-            LOGGER.error(e.getMessage());
+    public static String jsData(String source){
+        Object result = EasyJS.creat()
+                .addParameter("source",source)
+                .runFile(Config.I.getJsFileCon());
+        if (result != null){
+            return result.toString();
         }
+        return source;
+    }
+    public static String jsResult(String source,String translate){
+        Object result = EasyJS.creat()
+                .addParameter("source",source)
+                .addParameter("translate",translate)
+                .runFile(Config.I.getResult());
+        if (result != null){
+            return result.toString();
+        }
+        return translate;
     }
 }

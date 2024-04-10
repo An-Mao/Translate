@@ -15,6 +15,6 @@ public interface ComponentMixin {
      */
     @Overwrite
     static MutableComponent literal(String text){
-        return MutableComponent.create(new LiteralContents(DB.get(text)));
+        return MutableComponent.create(new LiteralContents(DB.get(DB.getST(),text)));
     }
 }
